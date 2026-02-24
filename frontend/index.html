@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Gasless Rollup Demo</title>
+</head>
+<body>
+
+<h2>Gasless Rollup Demo</h2>
+
+<button onclick="connectWallet()">Connect Wallet</button>
+<br><br>
+
+<button onclick="deposit()">Deposit 0.01 ETH</button>
+<br><br>
+
+<input id="to" placeholder="Recipient address" size="42" />
+<input id="amount" placeholder="Amount in ETH" />
+<button onclick="signAndSend()">Send Gasless Tx</button>
+
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+
+<script>
+
+let provider;
+let signer;
+let userAddress;
+let localNonce = null;
+
+const CONTRACT_ADDRESS = "0xFC191ee82BFfF20c0A1BD8933cffdd08bD679066";
+
+async function connectWallet() {
+
+  if (!window.ethereum) {
+    alert("Install MetaMask");
+    return;
+  }
+
+  provider = new ethers.providers.Web3Provider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = provider.getSigner();
+  userAddress = await signer.getAddress();
+
+  alert("Connected: " + userAddress);
+}
+
+async function deposit() {
+
+  if (!signer) {
+    alert("Connect wallet first");
+    return;
+  }
+
+  const contract = new ethers.Contract(
+    CONTRACT_ADDRESS,
+    ["function deposit() payable"],
+    signer
+  );
+
+  const tx = await contract.deposit({
+    value: ethers.utils.parseEther("0.01")
+  });
+
+  await tx.wait();
+
+  alert("Deposit complete");
+
+  // reset local nonce after deposit
+  localNonce = null;
+}
+
+async function signAndSend() {
+
+  try {
+
+    if (!signer) {
+      alert("Connect wallet first");
+      return;
+    }
+
+    const to = document.getElementById("to").value;
+    const amountEth = document.getElementById("amount").value;
+
+    if (!to || !amountEth) {
+      alert("Fill all fields");
+      return;
+    }
+
+    const amount = ethers.utils.parseEther(amountEth);
+
+    const readContract = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      ["function nonces(address) view returns (uint256)"],
+      provider
+    );
+
+    if (localNonce === null) {
+      const onchainNonce = await readContract.nonces(userAddress);
+      localNonce = parseInt(onchainNonce.toString());
+    }
+
+    const tx = {
+      from: userAddress,
+      to: to,
+      amount: amount.toString(),
+      nonce: localNonce.toString()
+    };
+
+    localNonce++;
+
+    const domain = {
+      name: "OptimisticRollup",
+      version: "1",
+      chainId: 11155111,
+      verifyingContract: CONTRACT_ADDRESS
+    };
+
+    const types = {
+      L2Tx: [
+        { name: "from", type: "address" },
+        { name: "to", type: "address" },
+        { name: "amount", type: "uint256" },
+        { name: "nonce", type: "uint256" }
+      ]
+    };
+
+    const signature = await signer._signTypedData(domain, types, tx);
+
+    await fetch("http://localhost:4000/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tx, signature })
+    });
+
+    alert("Gasless transaction sent");
+
+  } catch (err) {
+    console.error(err);
+    alert("Error: " + err.message);
+  }
+}
+
+</script>
+</body>
+</html>
