@@ -53,6 +53,20 @@ contract OptimisticRollup {
     Batch[] public batches;
 
     /*//////////////////////////////////////////////////////////////
+                        GAS SPONSORSHIP STORAGE
+    //////////////////////////////////////////////////////////////*/
+
+    mapping(address => bool) public whitelistedTargets;
+
+    mapping(address => uint256) public userSponsorshipCount;
+    mapping(address => uint256) public lastReset;
+
+    uint256 public constant DAILY_LIMIT = 5;
+    uint256 public constant DAY = 1 days;
+
+    address public owner;
+
+    /*//////////////////////////////////////////////////////////////
                                EVENTS
     //////////////////////////////////////////////////////////////*/
 
@@ -60,11 +74,17 @@ contract OptimisticRollup {
     event BatchFinalized(uint256 indexed batchId);
     event RelayerSlashed(address relayer);
 
+    event SponsorshipUsed(address indexed user);
+    event TargetWhitelisted(address target, bool status);
+
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
     constructor() {
+
+        owner = msg.sender;
+
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 keccak256(
@@ -76,6 +96,15 @@ contract OptimisticRollup {
                 address(this)
             )
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            ACCESS CONTROL
+    //////////////////////////////////////////////////////////////*/
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -92,11 +121,61 @@ contract OptimisticRollup {
     //////////////////////////////////////////////////////////////*/
 
     function deposit() external payable {
+
         balances[msg.sender] += msg.value;
 
         stateRoot = keccak256(
             abi.encodePacked(stateRoot, msg.sender, balances[msg.sender])
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                       SPONSORSHIP POLICY
+    //////////////////////////////////////////////////////////////*/
+
+    function toggleWhitelist(address target, bool status)
+        external
+        onlyOwner
+    {
+        whitelistedTargets[target] = status;
+
+        emit TargetWhitelisted(target, status);
+    }
+
+    function isEligibleForSponsorship(
+        address user,
+        address target
+    ) public view returns (bool) {
+
+        if (!whitelistedTargets[target]) {
+            return false;
+        }
+
+        if (block.timestamp > lastReset[user] + DAY) {
+            return true;
+        }
+
+        if (userSponsorshipCount[user] >= DAILY_LIMIT) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function recordSponsorship(address user) external {
+
+        if (block.timestamp > lastReset[user] + DAY) {
+
+            userSponsorshipCount[user] = 1;
+            lastReset[user] = block.timestamp;
+
+        } else {
+
+            userSponsorshipCount[user] += 1;
+
+        }
+
+        emit SponsorshipUsed(user);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -150,8 +229,11 @@ contract OptimisticRollup {
         address signer = digest.recover(signature);
 
         if (signer != txData.from) {
+
             bonded[batch.relayer] = 0;
+
             emit RelayerSlashed(batch.relayer);
+
             revert("Fraud: Invalid Signature");
         }
     }
@@ -165,12 +247,14 @@ contract OptimisticRollup {
         Batch storage batch = batches[batchId];
 
         require(!batch.finalized, "Already finalized");
+
         require(
             block.timestamp > batch.timestamp + CHALLENGE_WINDOW,
             "Too early"
         );
 
         stateRoot = batch.newStateRoot;
+
         batch.finalized = true;
 
         emit BatchFinalized(batchId);
