@@ -1,26 +1,32 @@
 import { contract } from "../relayer/config.js";
 
-/*
-Gas Sponsorship Policy Module
-Prevents relayer gas drain attacks
-*/
+/* ------------------------------------------------ */
+/*           CHECK SPONSORSHIP ELIGIBILITY          */
+/* ------------------------------------------------ */
 
 export async function checkSponsorship(tx) {
 
-  console.log("Checking sponsorship eligibility for:", tx.from);
-
-  const eligible = await contract.isEligibleForSponsorship(
-    tx.from,
-    tx.to
+  console.log(
+    "Checking sponsorship eligibility for:",
+    tx.from
   );
 
-  if (!eligible) {
-    throw new Error(
-      "Sponsorship rejected: quota exceeded or target not whitelisted"
+  const allowed =
+    await contract.isEligibleForSponsorship(
+      tx.from,
+      tx.to
     );
+
+  if (!allowed) {
+
+    throw new Error(
+      "Sponsorship denied (quota exceeded or target not whitelisted)"
+    );
+
   }
 
-  console.log("Sponsorship approved for:", tx.from);
-
-  return true;
+  console.log(
+    "Sponsorship approved for:",
+    tx.from
+  );
 }

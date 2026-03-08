@@ -4,27 +4,35 @@ import fs from "fs";
 
 dotenv.config({ path: "../.env" });
 
-if (!process.env.CONTRACT_ADDRESS)
-  throw new Error("CONTRACT_ADDRESS missing in .env");
 
-const artifact = JSON.parse(
-  fs.readFileSync(
-    "../out/OptimisticRollup.sol/OptimisticRollup.json",
-    "utf8"
-  )
-);
+/* ---------------- PROVIDER ---------------- */
 
 export const provider = new ethers.JsonRpcProvider(
   process.env.SEPOLIA_RPC_URL
 );
+
+/* ---------------- RELAYER WALLET ---------------- */
 
 export const relayerWallet = new ethers.Wallet(
   process.env.PRIVATE_KEY,
   provider
 );
 
+/* ---------------- LOAD ABI ---------------- */
+
+const artifact = JSON.parse(
+  fs.readFileSync(
+    "../out/OptimisticRollup.sol/OptimisticRollup.json"
+  )
+);
+
+/* ---------------- CONTRACT ---------------- */
+
 export const contract = new ethers.Contract(
   process.env.CONTRACT_ADDRESS,
   artifact.abi,
   relayerWallet
 );
+
+console.log("Relayer address:", relayerWallet.address);
+console.log("Rollup contract:", process.env.CONTRACT_ADDRESS);

@@ -30,7 +30,7 @@ contract OptimisticRollup {
                               CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    uint256 public constant CHALLENGE_WINDOW = 5 minutes;
+    uint256 public constant CHALLENGE_WINDOW = 6 minutes;
     uint256 public constant RELAYER_BOND = 0.001 ether;
 
     bytes32 public immutable DOMAIN_SEPARATOR;
@@ -48,10 +48,26 @@ contract OptimisticRollup {
 
     mapping(address => uint256) public bonded;
     mapping(address => uint256) public balances;
-    mapping(address => uint256) public nonces;
+    mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
 
     Batch[] public batches;
+/*//////////////////////////////////////////////////////////////
+                        NONCE BITMAP
+//////////////////////////////////////////////////////////////*/
 
+function _useNonce(address user, uint256 nonce) internal {
+
+    uint256 bucket = nonce >> 8;
+
+    uint256 mask = 1 << (nonce & 255);
+
+    require(
+        nonceBitmap[user][bucket] & mask == 0,
+        "Nonce already used"
+    );
+
+    nonceBitmap[user][bucket] |= mask;
+}
     /*//////////////////////////////////////////////////////////////
                         GAS SPONSORSHIP STORAGE
     //////////////////////////////////////////////////////////////*/
@@ -219,12 +235,21 @@ contract OptimisticRollup {
             "Window closed"
         );
 
-        bytes32 digest = _hashTypedData(
-            txData.from,
-            txData.to,
-            txData.amount,
-            txData.nonce
-        );
+       bytes32 digest = _hashTypedData(
+    txData.from,
+    txData.to,
+    txData.amount,
+    txData.nonce
+);
+
+// verify nonce not reused
+uint256 bucket = txData.nonce >> 8;
+uint256 mask = 1 << (txData.nonce & 255);
+
+require(
+    nonceBitmap[txData.from][bucket] & mask == 0,
+    "Nonce already used"
+);
 
         address signer = digest.recover(signature);
 
