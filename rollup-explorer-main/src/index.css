@@ -1,0 +1,166 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 225 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 225 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 225 25% 12%;
+
+    --primary: 252 56% 57%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 16% 93%;
+    --secondary-foreground: 225 25% 12%;
+
+    --muted: 220 16% 93%;
+    --muted-foreground: 220 10% 50%;
+
+    --accent: 252 56% 95%;
+    --accent-foreground: 252 56% 40%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 60% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 210 80% 55%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 220 16% 90%;
+    --input: 220 16% 90%;
+    --ring: 252 56% 57%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 10% 50%;
+    --sidebar-primary: 252 56% 57%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 252 56% 95%;
+    --sidebar-accent-foreground: 252 56% 40%;
+    --sidebar-border: 220 16% 93%;
+    --sidebar-ring: 252 56% 57%;
+
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+
+    --gradient-primary: linear-gradient(135deg, hsl(252, 56%, 57%), hsl(210, 80%, 55%));
+    --gradient-success: linear-gradient(135deg, hsl(152, 60%, 42%), hsl(170, 60%, 50%));
+    --gradient-card: linear-gradient(145deg, hsl(0, 0%, 100%), hsl(220, 20%, 98%));
+    --shadow-card: 0 1px 3px hsl(220 16% 90% / 0.5), 0 4px 12px hsl(220 16% 90% / 0.25);
+    --shadow-card-hover: 0 4px 16px hsl(252 56% 57% / 0.12), 0 8px 24px hsl(220 16% 90% / 0.3);
+  }
+
+  .dark {
+    --background: 225 25% 8%;
+    --foreground: 220 20% 92%;
+
+    --card: 225 20% 11%;
+    --card-foreground: 220 20% 92%;
+
+    --popover: 225 20% 11%;
+    --popover-foreground: 220 20% 92%;
+
+    --primary: 252 56% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 18% 16%;
+    --secondary-foreground: 220 20% 85%;
+
+    --muted: 225 18% 16%;
+    --muted-foreground: 220 10% 55%;
+
+    --accent: 252 30% 18%;
+    --accent-foreground: 252 56% 72%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 50% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 80% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 210 70% 50%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 225 15% 18%;
+    --input: 225 15% 18%;
+    --ring: 252 56% 62%;
+
+    --sidebar-background: 225 22% 10%;
+    --sidebar-foreground: 220 10% 55%;
+    --sidebar-primary: 252 56% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 252 30% 18%;
+    --sidebar-accent-foreground: 252 56% 72%;
+    --sidebar-border: 225 15% 16%;
+    --sidebar-ring: 252 56% 62%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(252, 56%, 62%), hsl(210, 80%, 60%));
+    --gradient-success: linear-gradient(135deg, hsl(152, 50%, 38%), hsl(170, 50%, 45%));
+    --gradient-card: linear-gradient(145deg, hsl(225, 20%, 11%), hsl(225, 22%, 13%));
+    --shadow-card: 0 1px 3px hsl(225 25% 5% / 0.4), 0 4px 12px hsl(225 25% 5% / 0.2);
+    --shadow-card-hover: 0 4px 16px hsl(252 56% 62% / 0.15), 0 8px 24px hsl(225 25% 5% / 0.25);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    background: hsl(0 0% 100% / 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border));
+    box-shadow: var(--shadow-card);
+  }
+
+  .glass-card:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .gradient-text {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .stat-card {
+    @apply rounded-2xl p-5 transition-all duration-300;
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .stat-card:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+  }
+}

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 contract OptimisticRollup {
 
@@ -48,9 +49,14 @@ contract OptimisticRollup {
 
     mapping(address => uint256) public bonded;
     mapping(address => uint256) public balances;
-    mapping(address => uint256) public nonces;
+
+    // NONCE BITMAP STORAGE
+    mapping(address => mapping(uint256 => uint256)) public nonceBitmap;
 
     Batch[] public batches;
+
+    // BLS AGGREGATED SIGNATURE STORAGE
+    mapping(uint256 => bytes) public batchSignature;
 
     /*//////////////////////////////////////////////////////////////
                         GAS SPONSORSHIP STORAGE
@@ -130,6 +136,40 @@ contract OptimisticRollup {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        NONCE BITMAP LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    function _useNonce(address user, uint256 nonce) internal {
+
+        uint256 bucket = nonce >> 8;
+        uint256 mask = 1 << (nonce & 255);
+
+        require(
+            nonceBitmap[user][bucket] & mask == 0,
+            "Nonce already used"
+        );
+
+        nonceBitmap[user][bucket] |= mask;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        TX EXECUTION
+    //////////////////////////////////////////////////////////////*/
+
+    function _executeTx(L2Tx calldata txData) internal {
+
+        _useNonce(txData.from, txData.nonce);
+
+        require(
+            balances[txData.from] >= txData.amount,
+            "Insufficient balance"
+        );
+
+        balances[txData.from] -= txData.amount;
+        balances[txData.to] += txData.amount;
+    }
+
+    /*//////////////////////////////////////////////////////////////
                        SPONSORSHIP POLICY
     //////////////////////////////////////////////////////////////*/
 
@@ -138,7 +178,6 @@ contract OptimisticRollup {
         onlyOwner
     {
         whitelistedTargets[target] = status;
-
         emit TargetWhitelisted(target, status);
     }
 
@@ -182,61 +221,83 @@ contract OptimisticRollup {
                              BATCH SUBMISSION
     //////////////////////////////////////////////////////////////*/
 
-    function submitBatch(
-        bytes32 txRoot,
-        bytes32 newStateRoot
-    ) external {
+   function submitBatch(
+    bytes32 txRoot,
+    bytes32 newStateRoot,
+    bytes calldata aggregatedSignature
+) external {
 
-        require(bonded[msg.sender] >= RELAYER_BOND, "Not bonded");
+    require(bonded[msg.sender] >= RELAYER_BOND, "Not bonded");
 
-        batches.push(
-            Batch({
-                txRoot: txRoot,
-                newStateRoot: newStateRoot,
-                timestamp: block.timestamp,
-                relayer: msg.sender,
-                finalized: false
-            })
-        );
+    uint256 id = batches.length;
 
-        emit BatchSubmitted(batches.length - 1, txRoot);
-    }
+    batches.push(
+        Batch({
+            txRoot: txRoot,
+            newStateRoot: newStateRoot,
+            timestamp: block.timestamp,
+            relayer: msg.sender,
+            finalized: false
+        })
+    );
+
+    batchSignature[id] = aggregatedSignature;
+
+    emit BatchSubmitted(id, txRoot);
+}
 
     /*//////////////////////////////////////////////////////////////
                             FRAUD PROOF
     //////////////////////////////////////////////////////////////*/
 
     function challengeTx(
-        uint256 batchId,
-        L2Tx calldata txData,
-        bytes calldata signature
-    ) external {
+    uint256 batchId,
+    L2Tx calldata txData,
+    bytes calldata signature,
+    bytes32[] calldata proof
+) external {
 
-        Batch storage batch = batches[batchId];
+    Batch storage batch = batches[batchId];
 
-        require(
-            block.timestamp <= batch.timestamp + CHALLENGE_WINDOW,
-            "Window closed"
-        );
+    require(
+        block.timestamp <= batch.timestamp + CHALLENGE_WINDOW,
+        "Window closed"
+    );
 
-        bytes32 digest = _hashTypedData(
+    bytes32 leaf = keccak256(
+        abi.encode(
             txData.from,
             txData.to,
             txData.amount,
             txData.nonce
-        );
+        )
+    );
 
-        address signer = digest.recover(signature);
+    require(
+        MerkleProof.verify(
+            proof,
+            batch.txRoot,
+            leaf
+        ),
+        "Invalid Merkle proof"
+    );
 
-        if (signer != txData.from) {
+    bytes32 digest = _hashTypedData(
+        txData.from,
+        txData.to,
+        txData.amount,
+        txData.nonce
+    );
 
-            bonded[batch.relayer] = 0;
+    address signer = digest.recover(signature);
 
-            emit RelayerSlashed(batch.relayer);
+    require(
+        signer == txData.from,
+        "Invalid signature"
+    );
 
-            revert("Fraud: Invalid Signature");
-        }
-    }
+    _executeTx(txData);
+}
 
     /*//////////////////////////////////////////////////////////////
                             FINALIZATION
@@ -254,7 +315,6 @@ contract OptimisticRollup {
         );
 
         stateRoot = batch.newStateRoot;
-
         batch.finalized = true;
 
         emit BatchFinalized(batchId);

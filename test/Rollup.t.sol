@@ -30,7 +30,7 @@ contract RollupTest is Test {
     roll.stake{value: 0.001 ether}();
 
     vm.prank(relayer);
-    roll.submitBatch(bytes32(0), bytes32(0));
+    roll.submitBatch(bytes32(0), bytes32(0), "");
 }
 
     /* ---------------------------------------------------------- */
@@ -62,6 +62,6 @@ contract RollupTest is Test {
         roll.stake{value: 0.001 ether}();
 
         vm.prank(relayer);
-        roll.submitBatch(dummyRoot, newState);
+        roll.submitBatch(dummyRoot, newState, "");
     }
 }

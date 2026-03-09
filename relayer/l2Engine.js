@@ -1,20 +1,22 @@
 import { ethers } from "ethers";
 import { MerkleTree } from "merkletreejs";
 import keccak256 from "keccak256";
+
 import { contract, relayerWallet } from "./config.js";
 import { checkSponsorship } from "../sponsorship/sponsorshipPolicy.mjs";
-import { addToMempool, buildBatch } from "../relayer/sequencer/sequencer.js";
-
+import { addToMempool, buildBatch } from "./sequencer/sequencer.js";
+import { compressBatch } from "./compression/compress.js";
+import { signBatch } from "./bls/blsSigner.js";
 
 /* ---------------- L2 STATE ---------------- */
 
 let balances = {};
 let nonces = {};
-let txPool = [];
 
-const BATCH_SIZE = 5;
+const batchTrees = {};
+let batchIdCounter = 0;
 
-/* ---------------- VERIFY EIP712 ---------------- */
+/* ---------------- EIP712 DOMAIN ---------------- */
 
 const domain = {
   name: "OptimisticRollup",
@@ -32,9 +34,17 @@ const types = {
   ]
 };
 
+/* ---------------- VERIFY SIGNATURE ---------------- */
+
 export function verifyTx(tx, signature) {
+
   const recovered = ethers.verifyTypedData(domain, types, tx, signature);
-  return recovered.toLowerCase() === tx.from.toLowerCase();
+
+  if (recovered.toLowerCase() !== tx.from.toLowerCase()) {
+    throw new Error("Invalid signature");
+  }
+
+  return true;
 }
 
 /* ---------------- APPLY TX ---------------- */
@@ -43,6 +53,7 @@ async function applyTx(tx) {
 
   const from = tx.from;
   const to = tx.to;
+
   const amount = BigInt(tx.amount);
   const nonce = Number(tx.nonce);
 
@@ -51,7 +62,7 @@ async function applyTx(tx) {
     balances[from] = BigInt(onchainBalance.toString());
   }
 
-  if (to !== from && balances[to] === undefined) {
+  if (balances[to] === undefined) {
     const onchainBalance = await contract.balances(to);
     balances[to] = BigInt(onchainBalance.toString());
   }
@@ -59,13 +70,6 @@ async function applyTx(tx) {
   if (nonces[from] === undefined) {
     nonces[from] = 0;
   }
-
-  console.log(
-    "Balance before:",
-    balances[from].toString(),
-    "Transfer:",
-    amount.toString()
-  );
 
   if (nonces[from] !== nonce) {
     throw new Error("Invalid nonce");
@@ -76,19 +80,14 @@ async function applyTx(tx) {
   }
 
   balances[from] -= amount;
-
-  if (to !== from) {
-    balances[to] += amount;
-  }
+  balances[to] += amount;
 
   nonces[from]++;
-
-  console.log("Balance after:", balances[from].toString());
 }
 
-/* ---------------- MERKLE ROOTS ---------------- */
+/* ---------------- MERKLE TREE ---------------- */
 
-function buildTxRoot(txs) {
+function buildMerkleTree(txs) {
 
   const leaves = txs.map(tx =>
     ethers.keccak256(
@@ -101,8 +100,14 @@ function buildTxRoot(txs) {
 
   const tree = new MerkleTree(leaves, keccak256, { sortPairs: true });
 
-  return tree.getHexRoot();
+  return {
+    tree,
+    root: tree.getHexRoot(),
+    leaves
+  };
 }
+
+/* ---------------- STATE ROOT ---------------- */
 
 function computeStateRoot() {
 
@@ -120,7 +125,7 @@ function computeStateRoot() {
   return tree.getHexRoot();
 }
 
-/* ---------------- AUTO STAKE ---------------- */
+/* ---------------- STAKE RELAYER ---------------- */
 
 async function ensureStaked() {
 
@@ -128,8 +133,6 @@ async function ensureStaked() {
   const bonded = await contract.bonded(relayerWallet.address);
 
   if (bonded < bondRequired) {
-
-    console.log("Staking relayer with:", bondRequired.toString());
 
     const tx = await contract.stake({
       value: bondRequired
@@ -141,45 +144,80 @@ async function ensureStaked() {
   }
 }
 
-/* ---------------- BATCH SUBMISSION ---------------- */
+/* ---------------- SUBMIT BATCH ---------------- */
 
 async function submitBatch(txs) {
 
   await ensureStaked();
 
-  for (let tx of txs) {
+  for (const tx of txs) {
     await applyTx(tx);
   }
 
-  const txRoot = buildTxRoot(txs);
+  /* CALDATA COMPRESSION */
+
+  const compressed = compressBatch(txs);
+
+  const txRoot = ethers.keccak256(compressed);
+
+  const { tree } = buildMerkleTree(txs);
+
   const stateRoot = computeStateRoot();
+
+  /* BLS SIGN BATCH ROOT */
+
+  const blsSignature = await signBatch(txRoot);
 
   console.log("Submitting batch...");
   console.log("TxRoot:", txRoot);
-  console.log("StateRoot:", stateRoot);
+  console.log("BLS Signature:", blsSignature);
 
-  const txResponse = await contract.submitBatch(txRoot, stateRoot);
+  const txResponse = await contract.submitBatch(
+    txRoot,
+    stateRoot,
+    blsSignature
+  );
+
   await txResponse.wait();
 
-  // Record sponsorship usage
-  for (let tx of txs) {
+  batchTrees[batchIdCounter] = tree;
+
+  batchIdCounter++;
+
+  for (const tx of txs) {
     await contract.recordSponsorship(tx.from);
   }
 
   console.log("Batch submitted to Sepolia");
 }
 
+/* ---------------- GENERATE MERKLE PROOF ---------------- */
+
+export function getProof(batchId, tx) {
+
+  const tree = batchTrees[batchId];
+
+  if (!tree) {
+    throw new Error("Batch not found");
+  }
+
+  const leaf = ethers.keccak256(
+    ethers.AbiCoder.defaultAbiCoder().encode(
+      ["address","address","uint256","uint256"],
+      [tx.from, tx.to, tx.amount, tx.nonce]
+    )
+  );
+
+  return tree.getHexProof(leaf);
+}
+
 /* ---------------- PUBLIC ENTRY ---------------- */
 
 export async function addTx(tx, signature) {
 
-  if (!verifyTx(tx, signature)) {
-    throw new Error("Invalid signature");
-  }
+  verifyTx(tx, signature);
 
   await checkSponsorship(tx);
-
-  console.log("Gas sponsorship policy passed");
 
   addToMempool(tx);
 

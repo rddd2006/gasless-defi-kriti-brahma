@@ -1,145 +1,389 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Gasless Rollup Demo</title>
-</head>
-<body>
 
-<h2>Gasless Rollup Demo</h2>
-
-<button onclick="connectWallet()">Connect Wallet</button>
-<br><br>
-
-<button onclick="deposit()">Deposit 0.01 ETH</button>
-<br><br>
-
-<input id="to" placeholder="Recipient address" size="42" />
-<input id="amount" placeholder="Amount in ETH" />
-<button onclick="signAndSend()">Send Gasless Tx</button>
+<title>Optimistic Rollup Demo</title>
 
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 
+<style>
+
+body{
+font-family:Arial;
+background:#0f0f0f;
+color:white;
+padding:30px
+}
+
+h2{
+color:#4cafef
+}
+
+button{
+padding:10px;
+margin:5px;
+cursor:pointer
+}
+
+input{
+padding:8px;
+margin:5px
+}
+
+.box{
+border:1px solid #333;
+padding:15px;
+margin-top:20px
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Gasless Optimistic Rollup</h1>
+
+<div class="box">
+
+<h2>Wallet</h2>
+
+<button onclick="connectWallet()">Connect Wallet</button>
+
+<p>Address: <span id="address"></span></p>
+
+<p>L2 Nonce: <span id="nonce"></span></p>
+
+</div>
+
+
+<div class="box">
+
+<h2>Deposit ETH to Rollup</h2>
+
+<input id="depositAmount" placeholder="ETH amount"/>
+
+<button onclick="deposit()">Deposit</button>
+
+</div>
+
+
+<div class="box">
+
+<h2>Send Gasless Transaction</h2>
+
+<input id="to" placeholder="Recipient Address" size="45"/>
+
+<input id="amount" placeholder="Amount (ETH)"/>
+
+<button onclick="sendTx()">Sign & Send</button>
+
+</div>
+
+
+<div class="box">
+
+<h2>Sequencer Stats</h2>
+
+<p>Mempool size: <span id="mempool"></span></p>
+
+<p>Last batch size: <span id="batchsize"></span></p>
+
+<button onclick="loadStats()">Refresh</button>
+
+</div>
+
+
+<div class="box">
+
+<h2>Mempool Viewer</h2>
+
+<pre id="pool"></pre>
+
+<button onclick="loadPool()">Refresh</button>
+
+</div>
+
+
+<div class="box">
+
+<h2>Challenge Batch</h2>
+
+<input id="batchId" placeholder="Batch ID"/>
+
+<button onclick="challenge()">Challenge</button>
+
+</div>
+
+
 <script>
 
-let provider;
-let signer;
-let userAddress;
-let localNonce = null;
+let provider
+let signer
+let userAddress
 
-const CONTRACT_ADDRESS = "0xfC7488340B0da2B42221161C6dC754Aee6bc1BF0";
+let localNonce = 0
 
-async function connectWallet() {
+const CONTRACT_ADDRESS = "0x9c782ef7F85f4001b647774bB278760B5ff12aFD"
 
-  if (!window.ethereum) {
-    alert("Install MetaMask");
-    return;
-  }
+const API = "http://localhost:4000"
 
-  provider = new ethers.providers.Web3Provider(window.ethereum);
-  await provider.send("eth_requestAccounts", []);
-  signer = provider.getSigner();
-  userAddress = await signer.getAddress();
+async function connectWallet(){
 
-  alert("Connected: " + userAddress);
+if(!window.ethereum){
+alert("Install MetaMask")
+return
 }
 
-async function deposit() {
+provider = new ethers.providers.Web3Provider(window.ethereum)
 
-  if (!signer) {
-    alert("Connect wallet first");
-    return;
-  }
+await provider.send("eth_requestAccounts",[])
 
-  const contract = new ethers.Contract(
-    CONTRACT_ADDRESS,
-    ["function deposit() payable"],
-    signer
-  );
+signer = provider.getSigner()
 
-  const tx = await contract.deposit({
-    value: ethers.utils.parseEther("0.01")
-  });
+userAddress = await signer.getAddress()
 
-  await tx.wait();
+document.getElementById("address").innerText = userAddress
 
-  alert("Deposit complete");
+await loadNonce()
 
-  // reset local nonce after deposit
-  localNonce = null;
 }
 
-async function signAndSend() {
 
-  try {
+async function loadNonce(){
 
-    if (!signer) {
-      alert("Connect wallet first");
-      return;
-    }
+try{
 
-    const to = document.getElementById("to").value;
-    const amountEth = document.getElementById("amount").value;
+const res = await fetch(API + "/nonce/" + userAddress)
 
-    if (!to || !amountEth) {
-      alert("Fill all fields");
-      return;
-    }
+const data = await res.json()
 
-    const amount = ethers.utils.parseEther(amountEth);
+localNonce = data.nonce || 0
 
-    const readContract = new ethers.Contract(
-      CONTRACT_ADDRESS,
-      ["function nonces(address) view returns (uint256)"],
-      provider
-    );
+document.getElementById("nonce").innerText = localNonce
 
-    if (localNonce === null) {
-      const onchainNonce = await readContract.nonces(userAddress);
-      localNonce = parseInt(onchainNonce.toString());
-    }
+}catch(err){
 
-    const tx = {
-      from: userAddress,
-      to: to,
-      amount: amount.toString(),
-      nonce: localNonce.toString()
-    };
+console.error("Nonce fetch failed",err)
 
-    localNonce++;
+localNonce = 0
 
-    const domain = {
-      name: "OptimisticRollup",
-      version: "1",
-      chainId: 11155111,
-      verifyingContract: CONTRACT_ADDRESS
-    };
+document.getElementById("nonce").innerText = 0
 
-    const types = {
-      L2Tx: [
-        { name: "from", type: "address" },
-        { name: "to", type: "address" },
-        { name: "amount", type: "uint256" },
-        { name: "nonce", type: "uint256" }
-      ]
-    };
-
-    const signature = await signer._signTypedData(domain, types, tx);
-
-    await fetch("http://localhost:4000/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tx, signature })
-    });
-
-    alert("Gasless transaction sent");
-
-  } catch (err) {
-    console.error(err);
-    alert("Error: " + err.message);
-  }
 }
+
+}
+
+
+async function deposit(){
+
+try{
+
+const amount = document.getElementById("depositAmount").value
+
+const contract = new ethers.Contract(
+
+CONTRACT_ADDRESS,
+
+["function deposit() payable"],
+
+signer
+
+)
+
+const tx = await contract.deposit({
+
+value: ethers.utils.parseEther(amount)
+
+})
+
+await tx.wait()
+
+alert("Deposit successful")
+
+}catch(err){
+
+console.error(err)
+
+alert("Deposit failed")
+
+}
+
+}
+
+
+async function sendTx(){
+
+try{
+
+const to = document.getElementById("to").value
+
+const amountEth = document.getElementById("amount").value
+
+const amount = ethers.utils.parseEther(amountEth)
+
+const tx = {
+
+from:userAddress,
+
+to:to,
+
+amount:amount.toString(),
+
+nonce:localNonce.toString()
+
+}
+
+const domain = {
+
+name:"OptimisticRollup",
+
+version:"1",
+
+chainId:11155111,
+
+verifyingContract:CONTRACT_ADDRESS
+
+}
+
+const types = {
+
+L2Tx:[
+
+{name:"from",type:"address"},
+
+{name:"to",type:"address"},
+
+{name:"amount",type:"uint256"},
+
+{name:"nonce",type:"uint256"}
+
+]
+
+}
+
+const signature = await signer._signTypedData(
+
+domain,
+
+types,
+
+tx
+
+)
+
+await fetch(API + "/submit",{
+
+method:"POST",
+
+headers:{"Content-Type":"application/json"},
+
+body:JSON.stringify({
+
+tx,
+
+signature
+
+})
+
+})
+
+localNonce++
+
+document.getElementById("nonce").innerText = localNonce
+
+alert("Gasless tx submitted")
+
+loadStats()
+
+}catch(err){
+
+console.error(err)
+
+alert("Transaction failed")
+
+}
+
+}
+
+
+async function loadStats(){
+
+try{
+
+const res = await fetch(API + "/stats")
+
+const data = await res.json()
+
+document.getElementById("mempool").innerText = data.mempoolSize
+
+document.getElementById("batchsize").innerText = data.lastBatchSize
+
+}catch(err){
+
+console.error("Stats error",err)
+
+}
+
+}
+
+
+async function loadPool(){
+
+try{
+
+const res = await fetch(API + "/mempool")
+
+const data = await res.json()
+
+document.getElementById("pool").innerText = JSON.stringify(data,null,2)
+
+}catch(err){
+
+console.error("Pool error",err)
+
+}
+
+}
+
+
+async function challenge(){
+
+try{
+
+const batchId = document.getElementById("batchId").value
+
+await fetch(API + "/challenge",{
+
+method:"POST",
+
+headers:{"Content-Type":"application/json"},
+
+body:JSON.stringify({
+
+batchId
+
+})
+
+})
+
+alert("Challenge submitted")
+
+}catch(err){
+
+console.error(err)
+
+alert("Challenge failed")
+
+}
+
+}
+
+
+setInterval(loadStats,3000)
 
 </script>
+
 </body>
+
 </html>
