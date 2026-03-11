@@ -1,135 +1,156 @@
 import { useEffect, useState } from "react";
 
+const API = "http://localhost:4000";
+
 /* ---------------- TYPES ---------------- */
 
-export type RollupStats = {
-  totalBatches: number;
-  totalTx: number;
-  mempoolSize: number;
-  avgGasPerTx: number;
-  batchGas: number;
-  compressedBytes: number;
-  uncompressedBytes: number;
-};
-
 export type Batch = {
-  id: number;
-  txRoot: string;
-  stateRoot: string;
-  blsSignature: string;
-  txCount: number;
-  timestamp: number;
-  challengeDeadline: number;
-  finalized: boolean;
-};
-
-export type MempoolTx = {
-  from: string;
-  to: string;
-  amount: number;
-  nonce: number;
-};
+  id:number
+  txRoot:string
+  stateRoot:string
+  blsSignature:string
+  txCount:number
+  timestamp:number
+  challengeDeadline:number
+  finalized:boolean
+}
 
 export type TxHistory = {
-  hash: string;
-  to: string;
-  amount: number;
-  batchId: number;
-  status: "pending" | "confirmed" | "failed";
-};
+  hash:string
+  to:string
+  amount:number
+  batchId:number | null
+  status:"pending" | "confirmed" | "failed"
+}
 
-/* ---------------- MOCK DATA ---------------- */
-
-const mockStats: RollupStats = {
-  totalBatches: 12,
-  totalTx: 78,
-  mempoolSize: 2,
-  avgGasPerTx: 2800,
-  batchGas: 94000,
-  compressedBytes: 260,
-  uncompressedBytes: 640,
-};
-
-const mockBatches: Batch[] = [
-  {
-    id: 12,
-    txRoot: "0xabc123...",
-    stateRoot: "0xdef456...",
-    blsSignature: "0xbls...",
-    txCount: 5,
-    timestamp: Date.now() - 600000,
-    challengeDeadline: Date.now() + 300000,
-    finalized: false,
-  },
-];
-
-const mockMempool: MempoolTx[] = [
-  {
-    from: "0x50200a40066aDf6C5e02c5946895fE1110D2459A",
-    to: "0x12345a40066aDf6C5e02c5946895fE1110D2459A",
-    amount: 0.5,
-    nonce: 5,
-  },
-];
-
-const mockHistory: TxHistory[] = [
-  {
-    hash: "0xabc123",
-    to: "0x12345a40066aDf6C5e02c5946895fE1110D2459A",
-    amount: 0.2,
-    batchId: 10,
-    status: "confirmed",
-  },
-];
+export type MempoolTx = {
+  from:string
+  to:string
+  amount:number
+  nonce:number
+}
 
 /* ---------------- STATS ---------------- */
 
-export function useRollupStats() {
+export function useRollupStats(){
 
-  const [stats, setStats] = useState<RollupStats>(mockStats);
+  const [stats,setStats] = useState<any>({});
+
+  const fetchStats = async ()=>{
+
+    const res = await fetch(`${API}/stats`);
+
+    const data = await res.json();
+
+    setStats(data);
+
+  };
+
+  useEffect(()=>{
+
+    fetchStats();
+
+    const interval = setInterval(fetchStats,5000);
+
+    return ()=>clearInterval(interval);
+
+  },[]);
 
   return { stats };
+
 }
 
 /* ---------------- BATCHES ---------------- */
 
-export function useBatches() {
+export function useBatches(){
 
-  const [batches, setBatches] = useState<Batch[]>(mockBatches);
+  const [batches,setBatches] = useState<Batch[]>([]);
+
+  const fetchBatches = async ()=>{
+
+    const res = await fetch(`${API}/batches`);
+
+    const data = await res.json();
+
+    setBatches(data);
+
+  };
+
+  useEffect(()=>{
+
+    fetchBatches();
+
+    const interval = setInterval(fetchBatches,5000);
+
+    return ()=>clearInterval(interval);
+
+  },[]);
 
   return { batches };
+
 }
 
 /* ---------------- MEMPOOL ---------------- */
 
-export function useMempool() {
+export function useMempool(){
 
-  const [mempool, setMempool] =
-    useState<MempoolTx[]>(mockMempool);
+  const [mempool,setMempool] = useState<MempoolTx[]>([]);
 
-  const refresh = () => {
-    setMempool([...mockMempool]);
+  const fetchMempool = async ()=>{
+
+    const res = await fetch(`${API}/mempool`);
+
+    const data = await res.json();
+
+    setMempool(data);
+
   };
 
-  useEffect(() => {
+  useEffect(()=>{
 
-    const interval = setInterval(() => {
-      setMempool([...mockMempool]);
-    }, 5000);
+    fetchMempool();
 
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchMempool,3000);
 
-  }, []);
+    return ()=>clearInterval(interval);
 
-  return { mempool, refresh };
+  },[]);
+
+  return {
+    mempool,
+    refresh:fetchMempool
+  };
+
 }
 
 /* ---------------- HISTORY ---------------- */
 
-export function useTxHistory() {
+export function useTxHistory(address?:string){
 
-  const [history, setHistory] =
-    useState<TxHistory[]>(mockHistory);
+  const [history,setHistory] = useState<TxHistory[]>([]);
+
+  const fetchHistory = async ()=>{
+
+    if(!address) return;
+
+    const res = await fetch(`${API}/transactions/${address}`);
+
+    const data = await res.json();
+
+    setHistory(data);
+
+  };
+
+  useEffect(()=>{
+
+    fetchHistory();
+
+    const interval = setInterval(fetchHistory,5000);
+
+    return ()=>clearInterval(interval);
+
+  },[address]);
 
   return { history };
+
 }

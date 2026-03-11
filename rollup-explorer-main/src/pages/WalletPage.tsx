@@ -48,9 +48,14 @@ export default function WalletPage() {
 
       toast.success("Wallet connected");
 
-    } catch (err: Error) {
-      toast.error(err.message);
-    }
+    } catch (err: unknown) {
+  if (err instanceof Error) {
+    toast.error(err.message);
+  } else {
+    toast.error("Something went wrong");
+  }
+}
+
   };
 
   const copyAddress = () => {
@@ -175,3 +180,4 @@ export default function WalletPage() {
     </div>
   );
 }
+
