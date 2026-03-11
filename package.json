@@ -1,0 +1,36 @@
+{
+  "name": "gasless-rollup",
+  "version": "1.0.0",
+  "description": "Optimistic rollup with gasless transactions",
+  "private": true,
+  "scripts": {
+    "build:contracts": "forge build",
+    "deploy:contracts": "forge script script/Deploy.s.sol --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY --broadcast",
+    "build:local": "bash build-deploy.sh",
+    "relayer": "cd relayer && npm install && node server.js",
+    "frontend": "cd rollup-explorer-main && npm install && npm run dev",
+    "start:relayer": "cd relayer && node server.js",
+    "start:frontend": "cd rollup-explorer-main && npm run dev",
+    "start:all": "concurrently \"npm run start:relayer\" \"npm run start:frontend\"",
+    "docker:build": "docker build --build-arg SEPOLIA_RPC_URL=$SEPOLIA_RPC_URL --build-arg PRIVATE_KEY=$PRIVATE_KEY -t gasless-rollup .",
+    "docker:run": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:clean": "docker compose down -v && docker rmi gasless-rollup",
+    "test:contracts": "forge test",
+    "lint:contracts": "solhint 'src/**/*.sol'",
+    "gas:report": "forge test --gas-report"
+  },
+  "keywords": [
+    "rollup",
+    "optimistic",
+    "gasless",
+    "ethereum",
+    "solidity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

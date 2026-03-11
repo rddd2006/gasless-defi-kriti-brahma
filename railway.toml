@@ -1,0 +1,29 @@
+# Railway Deployment Configuration
+# Better alternative to Vercel for long-running processes
+
+# Railway will use this Dockerfile
+FROM_DOCKERFILE=./Dockerfile
+
+# Environment variables
+# These will be set in Railway dashboard or via CLI
+SEPOLIA_RPC_URL=$SEPOLIA_RPC_URL
+PRIVATE_KEY=$PRIVATE_KEY
+CONTRACT_ADDRESS=$CONTRACT_ADDRESS
+NODE_ENV=production
+
+# Health check
+HEALTH_CHECK_PATH=/
+
+# Keep container running
+RESTART_POLICY=always
+
+# Memory and CPU allocation
+# Adjust based on your needs
+MEMORY=2Gb
+CPU=1
+
+# Port configuration
+PORT=4000
+
+# Logging
+LOG_LEVEL=info

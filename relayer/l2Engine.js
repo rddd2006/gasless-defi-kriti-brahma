@@ -14,6 +14,10 @@ let balances = {};
 let nonces = {};
 
 const batchTrees = {};
+const batchTxs = {};
+const batchSignatures = {};
+const txToSignature = {};
+
 let batchIdCounter = 0;
 
 /* ---------------- EIP712 DOMAIN ---------------- */
@@ -134,13 +138,16 @@ async function ensureStaked() {
 
   if (bonded < bondRequired) {
 
-    const tx = await contract.stake({
+    console.log("Relayer not bonded — staking...");
+
+    const tx = await contract.connect(relayerWallet).stake({
       value: bondRequired
     });
 
     await tx.wait();
 
     console.log("Relayer staked");
+
   }
 }
 
@@ -154,8 +161,6 @@ async function submitBatch(txs) {
     await applyTx(tx);
   }
 
-  /* CALDATA COMPRESSION */
-
   const compressed = compressBatch(txs);
 
   const txRoot = ethers.keccak256(compressed);
@@ -163,8 +168,6 @@ async function submitBatch(txs) {
   const { tree } = buildMerkleTree(txs);
 
   const stateRoot = computeStateRoot();
-
-  /* BLS SIGN BATCH ROOT */
 
   const blsSignature = await signBatch(txRoot);
 
@@ -180,7 +183,11 @@ async function submitBatch(txs) {
 
   await txResponse.wait();
 
-  batchTrees[batchIdCounter] = tree;
+  const currentBatchId = batchIdCounter;
+
+  batchTrees[currentBatchId] = tree;
+  batchTxs[currentBatchId] = txs;
+  batchSignatures[currentBatchId] = txs.map(tx => txToSignature[`${tx.from}:${tx.nonce}`] || "");
 
   batchIdCounter++;
 
@@ -188,17 +195,41 @@ async function submitBatch(txs) {
     await contract.recordSponsorship(tx.from);
   }
 
-  console.log("Batch submitted to Sepolia");
+  console.log("Batch submitted to Sepolia. Batch ID:", currentBatchId);
+}
+
+/* ---------------- GET BATCH DATA ---------------- */
+
+export function getBatch(batchId) {
+
+  const txs = batchTxs[batchId];
+  const signatures = batchSignatures[batchId];
+
+  if (!txs || !signatures) {
+    return null;
+  }
+
+  return {
+    txs,
+    signatures
+  };
 }
 
 /* ---------------- GENERATE MERKLE PROOF ---------------- */
 
-export function getProof(batchId, tx) {
+export function getProof(batchId, txIndex) {
 
   const tree = batchTrees[batchId];
+  const txs = batchTxs[batchId];
 
-  if (!tree) {
+  if (!tree || !txs) {
     throw new Error("Batch not found");
+  }
+
+  const tx = txs[txIndex];
+
+  if (!tx) {
+    throw new Error("TX index not found");
   }
 
   const leaf = ethers.keccak256(
@@ -208,7 +239,12 @@ export function getProof(batchId, tx) {
     )
   );
 
-  return tree.getHexProof(leaf);
+  const proof = tree.getHexProof(leaf);
+
+  return {
+    tx,
+    proof
+  };
 }
 
 /* ---------------- PUBLIC ENTRY ---------------- */
@@ -217,7 +253,10 @@ export async function addTx(tx, signature) {
 
   verifyTx(tx, signature);
 
-  await checkSponsorship(tx);
+  // Store the signature for later retrieval
+  txToSignature[`${tx.from}:${tx.nonce}`] = signature;
+
+ // await checkSponsorship(tx);
 
   addToMempool(tx);
 

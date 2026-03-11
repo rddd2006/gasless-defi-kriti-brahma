@@ -31,7 +31,7 @@ contract OptimisticRollup {
                               CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    uint256 public constant CHALLENGE_WINDOW = 5 minutes;
+    uint256 public constant CHALLENGE_WINDOW = 55 minutes;
     uint256 public constant RELAYER_BOND = 0.001 ether;
 
     bytes32 public immutable DOMAIN_SEPARATOR;

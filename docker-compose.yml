@@ -1,29 +1,28 @@
-version: "3.9"
-
 services:
-
-  relayer:
+  gasless-rollup:
     build:
       context: .
-      dockerfile: Dockerfile.relayer
-    container_name: rollup_relayer
-    env_file:
-      - .env
+      dockerfile: Dockerfile
+      args:
+        SEPOLIA_RPC_URL: ${SEPOLIA_RPC_URL}
+        PRIVATE_KEY: ${PRIVATE_KEY}
+    container_name: gasless-rollup
     ports:
       - "4000:4000"
-    restart: always
-
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.frontend
-    container_name: rollup_frontend
-    ports:
-      - "3000:3000"
-    restart: always
-
-  foundry:
-    build:
-      context: .
-      dockerfile: Dockerfile.foundry
-    container_name: rollup_foundry
+      - "8080:8080"
+    environment:
+      - SEPOLIA_RPC_URL=${SEPOLIA_RPC_URL}
+      - PRIVATE_KEY=${PRIVATE_KEY}
+      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      - NODE_ENV=development
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "${import.meta.env.VITE_BACKEND_URL}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

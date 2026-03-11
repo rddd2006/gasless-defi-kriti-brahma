@@ -38,7 +38,7 @@ export default function WalletPage() {
 
       setL1Balance(formatEther(balance));
 
-      const nonceRes = await fetch(`http://localhost:4000/nonce/${addr}`);
+      const nonceRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/nonce/${addr}`);
 
       const nonceData = await nonceRes.json();
 

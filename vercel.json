@@ -1,0 +1,39 @@
+{
+  "name": "Gasless Rollup",
+  "version": 2,
+  "public": false,
+  "env": [
+    {
+      "key": "SEPOLIA_RPC_URL",
+      "description": "Sepolia network RPC endpoint",
+      "value": "@sepolia_rpc_url"
+    },
+    {
+      "key": "PRIVATE_KEY",
+      "description": "Private key for contract deployment",
+      "value": "@private_key",
+      "type": "secret"
+    },
+    {
+      "key": "CONTRACT_ADDRESS",
+      "description": "Deployed contract address",
+      "value": "@contract_address"
+    }
+  ],
+  "builds": [
+    {
+      "src": "Dockerfile",
+      "use": "@vercel/docker"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/relayer/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/rollup-explorer-main/index.html"
+    }
+  ]
+}

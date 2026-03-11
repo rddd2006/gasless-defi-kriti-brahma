@@ -126,7 +126,7 @@ let localNonce = 0
 
 const CONTRACT_ADDRESS = "0x9c782ef7F85f4001b647774bB278760B5ff12aFD"
 
-const API = "http://localhost:4000"
+const API = "${import.meta.env.VITE_BACKEND_URL}"
 
 async function connectWallet(){
 

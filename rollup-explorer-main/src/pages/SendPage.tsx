@@ -35,7 +35,7 @@ export default function SendPage() {
 
       setAddress(addr);
 
-      const res = await fetch(`http://localhost:4000/nonce/${addr}`);
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/nonce/${addr}`);
 
       const data = await res.json();
 
@@ -138,7 +138,7 @@ export default function SendPage() {
 
       /* ------------------------------------------------ */
 
-      const response = await fetch("http://localhost:4000/submit", {
+      const response = await fetch("${import.meta.env.VITE_BACKEND_URL}/submit", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
