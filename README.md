@@ -81,10 +81,6 @@ foundryup
 Verify installation:
 
 forge --version
-📥 Clone the Repository
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd YOUR_REPO
-🧱 Install Smart Contract Dependencies
 
 Navigate to the contracts directory:
 
@@ -136,7 +132,7 @@ cors
 @noble/bls12-381
 
 Configure Environment
-
+####(NAME THE root FILE AS gasless-rollup)####
 Create .env inside project:
 
 RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
@@ -189,7 +185,7 @@ cd relayer/
 node server.js
 
 cd ..
-
+(make sure to change contract address to the contract address of deploy)
 
 
 
