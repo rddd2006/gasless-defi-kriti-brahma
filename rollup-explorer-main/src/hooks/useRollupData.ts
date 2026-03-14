@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API = "${import.meta.env.VITE_BACKEND_URL}";
+const API = `${import.meta.env.VITE_BACKEND_URL}`;
 
 /* ---------------- TYPES ---------------- */
 

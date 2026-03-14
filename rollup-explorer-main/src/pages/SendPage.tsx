@@ -138,7 +138,7 @@ export default function SendPage() {
 
       /* ------------------------------------------------ */
 
-      const response = await fetch("${import.meta.env.VITE_BACKEND_URL}/submit", {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/submit`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

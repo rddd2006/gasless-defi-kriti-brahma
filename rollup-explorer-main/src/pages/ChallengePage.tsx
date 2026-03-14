@@ -84,7 +84,7 @@ export default function ChallengePage() {
       }
 
       const res = await fetch(
-        "${import.meta.env.VITE_BACKEND_URL}/challenge",
+        `${import.meta.env.VITE_BACKEND_URL}/challenge`,
         {
           method:"POST",
           headers:{
