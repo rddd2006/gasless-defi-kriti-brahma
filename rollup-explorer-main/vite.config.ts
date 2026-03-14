@@ -20,6 +20,11 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  preview : {
+    host: true ,
+    port : 8080 ,
+    allowedHosts: ["https://gasless-defi-frontend.onrender.com"]
+  },
   plugins: [
     nodePolyfills(), // 2. Add polyfills here
     react(), 
