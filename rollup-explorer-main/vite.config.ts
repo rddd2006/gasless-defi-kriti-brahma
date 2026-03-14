@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => ({
   preview : {
     host: true ,
     port : 8080 ,
-    allowedHosts: ["https://gasless-defi-frontend.onrender.com"]
+    allowedHosts: ["gasless-defi-frontend.onrender.com"]
   },
   plugins: [
     nodePolyfills(), // 2. Add polyfills here
